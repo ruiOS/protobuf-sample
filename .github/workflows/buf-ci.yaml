@@ -1,0 +1,53 @@
+# Check the below docs for more info
+# https://docs.buf.build/ci/quickstart/
+# https://buf.build/docs/bsr/ci-cd/github-actions/
+# The name of the workflow as it appears in the GitHub Actions UI.
+name: Buf CI
+
+on:
+  push:
+  # run only when pushed or force pushed into these branches
+    branches:
+      - main
+      - 'release/**'
+  # run only when PR is raised to these branches
+  pull_request:
+    branches:
+      - main
+      - 'release/**'
+    types:
+      - opened
+      - synchronize
+      - reopened
+  # run on every branch deletion
+  delete:
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  buf:
+    runs-on: ubuntu-latest
+    steps:
+
+      # Checkout to the branch that triggered the action
+      # v4 here is the runner version we are using
+      - uses: actions/checkout@v4
+
+      # Uses the official Buf GitHub Action (version 1).
+      # It installs Buf and performs its default CI tasks
+      # (such as linting and breaking-change detection)
+      # based on buf.yaml configuration.
+      - uses: bufbuild/buf-action@v1
+
+        with:
+          # secrets.BUFF_TOKEN is a GitHub Repository Secret,
+          # so the actual token is stored securely and is never
+          # hardcoded into this workflow.
+          token: ${{ secrets.BUFF_TOKEN }}
+
+          # Set this to install Buf and stop, leaving subsequent steps to call buf directly.
+          # setup_only: true
+          # Optional GitHub token to avoid rate limits.
+          # github_token: ${{ secrets.GITHUB_TOKEN }}

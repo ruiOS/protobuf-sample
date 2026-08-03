@@ -1,0 +1,103 @@
+name: Release SDK
+
+# Trigger: Actions → Release SDK → Run workflow
+# Pick the branch you want to release from in the GitHub UI dropdown.
+# That branch is used automatically via github.ref_name — no extra input needed.
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version tag (e.g. v1.0.0)"
+        required: true
+        type: string
+
+permissions:
+  contents: write  # required to create tags, commits, and publish releases
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      # -----------------------------------------------------------------------
+      # 1. Checkout the branch selected in the GitHub UI "Run workflow" dropdown.
+      # -----------------------------------------------------------------------
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # -----------------------------------------------------------------------
+      # 2. Detach HEAD immediately after checkout.
+      #    Any commits made after this point are NOT on any branch — they exist
+      #    only as the target of the release tag. The branch (e.g. main) pointer
+      #    is NEVER moved, so generated files never land in any branch.
+      # -----------------------------------------------------------------------
+      - name: Detach HEAD (so commits go to tag only, not any branch)
+        run: git checkout --detach
+
+      # -----------------------------------------------------------------------
+      # 3. Install Buf CLI (authenticated so remote plugins resolve)
+      # -----------------------------------------------------------------------
+      - name: Setup Buf
+        uses: bufbuild/buf-action@v1
+        with:
+          token: ${{ secrets.BUFF_TOKEN }}
+          setup_only: true
+
+      # -----------------------------------------------------------------------
+      # 4. Run buf generate.
+      #    buf.gen.yaml outputs:
+      #      generated/dart/  ← Dart protobuf messages + gRPC stubs
+      #      generated/java/  ← Java protobuf classes + gRPC stubs
+      # -----------------------------------------------------------------------
+      - name: Generate SDKs
+        run: buf generate
+
+      # -----------------------------------------------------------------------
+      # 5. Force-add and commit the generated/ folder on the detached HEAD,
+      #    then create the git tag and push ONLY the tag to GitHub.
+      #    No branch is pushed — main stays clean.
+      #    GitHub must know the commit before gh release create runs,
+      #    so we push the tag first here.
+      # -----------------------------------------------------------------------
+      - name: Commit, tag, and push tag (no branch pushed)
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          # -f bypasses .gitignore so generated/ is included in the tag tree
+          git add -f generated/
+          git commit -m "chore(release): add generated SDKs for ${{ github.event.inputs.version }}"
+          # Tag the detached HEAD commit
+          git tag "${{ github.event.inputs.version }}"
+          # Push ONLY the tag — the branch pointer is never moved
+          git push origin "${{ github.event.inputs.version }}"
+
+      # -----------------------------------------------------------------------
+      # 6. Create the GitHub Release from the already-pushed tag.
+      #    No --target needed — the tag was pushed in the previous step so
+      #    GitHub already knows the commit. Users can browse generated/dart/
+      #    and generated/java/ directly in the tag view on GitHub.
+      # -----------------------------------------------------------------------
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "${{ github.event.inputs.version }}" \
+            --title "SDK Release ${{ github.event.inputs.version }}" \
+            --notes "## SDK Release ${{ github.event.inputs.version }}
+
+          **Branch:** \`${{ github.ref_name }}\`
+
+          ### Browse the generated SDKs in this tag
+
+          The Dart and Java source files are committed directly into this release tag — no download or unzip required. Browse or copy files straight from GitHub:
+
+          | SDK | Browse in tag |
+          |-----|---------------|
+          | Dart (Flutter) | [generated/dart/](../../tree/${{ github.event.inputs.version }}/generated/dart) |
+          | Java           | [generated/java/](../../tree/${{ github.event.inputs.version }}/generated/java) |
+
+          > To add as a local dependency, download the **Source code (zip)** from the Assets below, extract it, and follow the import instructions in the [README](../../blob/${{ github.event.inputs.version }}/README.md#using-the-generated-sdks).
+
+          ### Proto sources
+          [protos/](../../tree/${{ github.event.inputs.version }}/protos)"

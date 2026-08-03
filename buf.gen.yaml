@@ -1,0 +1,21 @@
+version: v2
+
+managed:
+  enabled: true
+  override:
+    - file_option: java_multiple_files
+      value: true
+
+plugins:
+  # Dart (messages + gRPC stubs) → generated/dart/
+  - remote: buf.build/protocolbuffers/dart
+    out: generated/dart
+
+  # Java protobuf message classes → generated/java/
+  - remote: buf.build/protocolbuffers/java
+    out: generated/java
+
+  # Java gRPC service stubs → generated/java/
+  # Generates both the async stub and the blocking stub (used by backend servers)
+  - remote: buf.build/grpc/java
+    out: generated/java

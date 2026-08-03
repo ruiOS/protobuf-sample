@@ -1,0 +1,41 @@
+# Buf Module Configuration
+#
+# This file defines a single protobuf module.
+# Every module published to the Buf Schema Registry (BSR)
+# has its own buf.yaml.
+
+version: v2
+
+# for noe proto is monolithic due to budget costrainsts.
+# We can plan to move it to support microservices in future
+
+modules:
+  - path: protos
+    name: buf.build/kashi-technology/protobuf
+
+lint:
+  use:
+    - STANDARD
+
+  # Require all enums to have a zero-value ending with _UNSPECIFIED.
+  enum_zero_value_suffix: _UNSPECIFIED
+
+  # Enforce all gRPC service names to end with "Service".
+  service_suffix: Service
+
+  # Prevent RPCs where request and response are the same message.
+  rpc_allow_same_request_response: false
+
+  # Require explicit request messages.
+  rpc_allow_google_protobuf_empty_requests: false
+
+  # Require explicit response messages.
+  rpc_allow_google_protobuf_empty_responses: false
+
+breaking:
+  use:
+    - FILE
+
+  # Allow deletion of extension fields.
+  except:
+    - EXTENSION_NO_DELETE
